@@ -1,0 +1,10 @@
+# Credentials & Secrets
+.env
+
+# Dependencies
+node_modules/
+
+# OS/Logs files
+logs/
+*.log
+.DS_Store
