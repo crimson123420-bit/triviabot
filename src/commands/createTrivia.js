@@ -315,9 +315,9 @@ module.exports = {
         .setDescription(
           `## ${session.question || "Trivia Challenge"}\n\n` +
             shuffledOptions
-              .map((o, i) => `**Option ${i + 1}:** ${o.text}`)
+              .map((o, i) => `-# Option ${i + 1} : ${o.text}`)
               .join("\n") +
-            `\n\n🚨 **Ends:** <t:${endTimestamp}:F> (<t:${endTimestamp}:R>)`,
+            `\n\n🚨 Ends: <t:${endTimestamp}:F> (<t:${endTimestamp}:R>)`,
         )
         .setImage(session.img1);
 
