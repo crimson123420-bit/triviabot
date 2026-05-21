@@ -67,20 +67,21 @@ module.exports = {
 
   async execute(interaction) {
     try {
+      // 1. SAFE CONFIGURATION GATHERING
       const config = await GuildConfig.findOne({
-        guildId: interaction.guild.id,
+        guildId: interaction.guild?.id,
+      }).catch((err) => {
+        console.error("Database read error (GuildConfig):", err);
+        return null;
       });
 
       if (config && config.triviaChannelId) {
         const isCurrentChannelLinked =
           interaction.channel.id === config.triviaChannelId;
-
-        // SAFE CHECK: Check if @everyone can view the channel using the standard permissions cache
         const everyoneRole = interaction.guild.roles.everyone;
         const channelPermissions =
           interaction.channel.permissionsFor(everyoneRole);
 
-        // If the bot can't read permissions, default safely to public behavior
         const isPrivateChannel = channelPermissions
           ? !channelPermissions.has(PermissionFlagsBits.ViewChannel)
           : false;
@@ -89,7 +90,6 @@ module.exports = {
           PermissionFlagsBits.Administrator,
         );
 
-        // Gatekeeper logic check
         if (!isCurrentChannelLinked && !(isPrivateChannel && userHasAdmin)) {
           return await interaction.editReply({
             content: `❌ This command can only be run in the designated trivia channel (<#${config.triviaChannelId}>) or private administrator rooms.`,
@@ -97,18 +97,40 @@ module.exports = {
         }
       }
 
-      const allowed = await isAuthorized(interaction);
+      // 2. SAFE PERMISSIONS PASS
+      let allowed = false;
+      try {
+        allowed = await isAuthorized(interaction);
+      } catch (permError) {
+        console.error(
+          "❌ CRITICAL: isAuthorized function crashed during verification:",
+          permError,
+        );
+        // Fallback: If your permissions utility is broken, let's allow Admins to pass anyway
+        allowed = interaction.member.permissions.has(
+          PermissionFlagsBits.Administrator,
+        );
+      }
+
       if (!allowed) {
         return await interaction.editReply({
           content: "❌ You are not authorized to create trivia games.",
         });
       }
 
+      // 3. SAFE ATTACHMENT EXTRACTION
       const duration = interaction.options.getString("duration");
       const img1 = interaction.options.getAttachment("img1");
       const img2 = interaction.options.getAttachment("img2");
 
-      // Atomic write configuration operation
+      if (!img1) {
+        return await interaction.editReply({
+          content:
+            "❌ Primary image (img1) failed to upload properly. Please re-attach the file and try again.",
+        });
+      }
+
+      // 4. ATOMIC DATA PERSISTENCE
       await TriviaSetup.findOneAndUpdate(
         { creatorId: interaction.user.id },
         {
@@ -121,15 +143,18 @@ module.exports = {
           options: [],
         },
         { upsert: true, new: true, overwrite: true },
-      );
+      ).catch((dbError) => {
+        throw new Error(`Mongoose write failed: ${dbError.message}`);
+      });
 
-      // Render out dashboard immediately
       return await this.renderSetupPanel(interaction, interaction.user.id);
     } catch (error) {
-      console.error("❌ CRITICAL ERROR INSIDE EXECUTE GATEKEEPER:", error);
+      // 💡 THIS WILL PRINT THE EXACT LINE AND FILE COMPONENT CAUSING YOUR CRASH IN YOUR TERMINAL!
+      console.error("🔴 DISCOVERED GATEKEEPER CRASH LOG BELOW:");
+      console.error(error);
+
       return await interaction.editReply({
-        content:
-          "❌ An internal gatekeeper error occurred while establishing this session setup stream.",
+        content: `❌ **Gatekeeper Failure:** \`${error.message}\``,
       });
     }
   },
