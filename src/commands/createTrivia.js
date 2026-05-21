@@ -64,6 +64,16 @@ module.exports = {
     ),
 
   async execute(interaction) {
+    const config = await TriviaSetup.findOne({
+      configId: "SINGLE_SERVER_CONFIG",
+    });
+    if (config && config.triviaChannelId) {
+      if (interaction.channel.id !== config.triviaChannelId) {
+        return interaction.editReply({
+          content: `❌ This command can only be used in the designated trivia channel: <#${config.triviaChannelId}>.`,
+        });
+      }
+    }
     const allowed = await isAuthorized(interaction);
     if (!allowed) {
       return interaction.editReply({
