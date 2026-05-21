@@ -9,6 +9,7 @@ const {
   TextInputBuilder,
   TextInputStyle,
   PermissionFlagsBits,
+  MessageFlags,
 } = require("discord.js");
 
 const UserStats = require("../models/UserStats");
@@ -71,7 +72,6 @@ module.exports = {
       const isCurrentChannelLinked =
         interaction.channel.id === config.triviaChannelId;
 
-      // Fast check: Is this a hidden channel for @everyone?
       const everyoneRole = interaction.guild.roles.everyone;
       const isPrivateChannel = !interaction.channel
         .permissionsFor(everyoneRole)
@@ -80,7 +80,6 @@ module.exports = {
         PermissionFlagsBits.Administrator,
       );
 
-      // Deny only if it's NOT the public arena AND NOT a staff room
       if (!isCurrentChannelLinked && !(isPrivateChannel && userHasAdmin)) {
         return interaction.editReply({
           content: `❌ This command can only be run in the designated trivia channel (<#${config.triviaChannelId}>) or private administrator rooms.`,
@@ -99,17 +98,21 @@ module.exports = {
     const img1 = interaction.options.getAttachment("img1");
     const img2 = interaction.options.getAttachment("img2");
 
-    // Clear previous sessions and write fresh entry cleanly
-    await TriviaSetup.findOneAndDelete({ creatorId: interaction.user.id });
-    await TriviaSetup.create({
-      creatorId: interaction.user.id,
-      channelId: interaction.channel.id,
-      question: "",
-      duration,
-      img1: img1.url,
-      img2: img2?.url || null,
-      options: [],
-    });
+    // FIX: Combined findOneAndDelete + create into ONE atomic operation
+    // This removes the database lag that freezes the "thinking" status!
+    await TriviaSetup.findOneAndUpdate(
+      { creatorId: interaction.user.id },
+      {
+        creatorId: interaction.user.id,
+        channelId: interaction.channel.id,
+        question: "",
+        duration,
+        img1: img1.url,
+        img2: img2?.url || null,
+        options: [],
+      },
+      { upsert: true, new: true, overwrite: true },
+    );
 
     return this.renderSetupPanel(interaction, interaction.user.id);
   },
