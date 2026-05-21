@@ -526,7 +526,7 @@ module.exports = {
       embeds.push(
         new EmbedBuilder()
           .setColor(0x57f287)
-          .setTitle("🏁 Game Over — Final Results")
+          .setTitle("Trivia Over — Final Results")
           .setDescription(resultDescription),
       );
 
