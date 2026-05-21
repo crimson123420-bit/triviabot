@@ -67,24 +67,21 @@ module.exports = {
   async execute(interaction) {
     const config = await GuildConfig.findOne({ guildId: interaction.guild.id });
 
-    // 1. UPDATED GATEKEEPER LOOPS
-    // Check if a linked public channel exists
     if (config && config.triviaChannelId) {
       const isCurrentChannelLinked =
         interaction.channel.id === config.triviaChannelId;
-      const isCurrentChannelAdminOnly =
-        interaction.channel
-          .permissionsFor(interaction.guild.roles.everyone)
-          .has(PermissionFlagsBits.ViewChannel) === false;
-      const userHasAdminPerms = interaction.member.permissions.has(
+
+      // Fast check: Is this a hidden channel for @everyone?
+      const everyoneRole = interaction.guild.roles.everyone;
+      const isPrivateChannel = !interaction.channel
+        .permissionsFor(everyoneRole)
+        ?.has(PermissionFlagsBits.ViewChannel);
+      const userHasAdmin = interaction.member.permissions.has(
         PermissionFlagsBits.Administrator,
       );
 
-      // Deny access if it's not the linked channel AND it's not a hidden staff/admin room
-      if (
-        !isCurrentChannelLinked &&
-        !(isCurrentChannelAdminOnly && userHasAdminPerms)
-      ) {
+      // Deny only if it's NOT the public arena AND NOT a staff room
+      if (!isCurrentChannelLinked && !(isPrivateChannel && userHasAdmin)) {
         return interaction.editReply({
           content: `❌ This command can only be run in the designated trivia channel (<#${config.triviaChannelId}>) or private administrator rooms.`,
         });
@@ -102,18 +99,17 @@ module.exports = {
     const img1 = interaction.options.getAttachment("img1");
     const img2 = interaction.options.getAttachment("img2");
 
-    await TriviaSetup.findOneAndUpdate(
-      { creatorId: interaction.user.id },
-      {
-        channelId: interaction.channel.id, // Keeps track of where the setup panel dialogue is running
-        question: "",
-        duration,
-        img1: img1.url,
-        img2: img2?.url || null,
-        options: [],
-      },
-      { upsert: true, new: true },
-    );
+    // Clear previous sessions and write fresh entry cleanly
+    await TriviaSetup.findOneAndDelete({ creatorId: interaction.user.id });
+    await TriviaSetup.create({
+      creatorId: interaction.user.id,
+      channelId: interaction.channel.id,
+      question: "",
+      duration,
+      img1: img1.url,
+      img2: img2?.url || null,
+      options: [],
+    });
 
     return this.renderSetupPanel(interaction, interaction.user.id);
   },
