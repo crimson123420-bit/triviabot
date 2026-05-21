@@ -8,9 +8,7 @@ const TriviaSetup = require("../models/TriviaSetup");
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("link-channel")
-    .setDescription(
-      "Links the trivia creation system to a specific text channel.",
-    )
+    .setDescription("Links the trivia creation to a specific text channel.")
     .addChannelOption((option) =>
       option
         .setName("channel")
@@ -30,9 +28,9 @@ module.exports = {
       { upsert: true, new: true },
     );
 
-    return interaction.reply({
+    // FIX: Changed from interaction.reply to interaction.editReply
+    return interaction.editReply({
       content: `Successfully linked trivia creation to ${targetChannel}. Running \`/create-trivia\` is now restricted to this channel.`,
-      ephemeral: true,
     });
   },
 };

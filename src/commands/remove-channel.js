@@ -13,19 +13,19 @@ module.exports = {
     });
 
     if (!config || !config.triviaChannelId) {
-      return interaction.reply({
+      // FIX: Changed from interaction.reply to interaction.editReply
+      return interaction.editReply({
         content: "There is no channel currently linked.",
-        ephemeral: true,
       });
     }
 
     config.triviaChannelId = null;
     await config.save();
 
-    return interaction.reply({
+    // FIX: Changed from interaction.reply to interaction.editReply
+    return interaction.editReply({
       content:
         "Successfully unlinked the trivia channel. Trivia can now be created in any channel.",
-      ephemeral: true,
     });
   },
 };
