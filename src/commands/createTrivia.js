@@ -66,57 +66,72 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    const config = await GuildConfig.findOne({ guildId: interaction.guild.id });
+    try {
+      const config = await GuildConfig.findOne({
+        guildId: interaction.guild.id,
+      });
 
-    if (config && config.triviaChannelId) {
-      const isCurrentChannelLinked =
-        interaction.channel.id === config.triviaChannelId;
-      const everyoneRole = interaction.guild.roles.everyone;
+      if (config && config.triviaChannelId) {
+        const isCurrentChannelLinked =
+          interaction.channel.id === config.triviaChannelId;
 
-      // Checking permissions carefully with optional chaining
-      const isPrivateChannel = !interaction.channel
-        .permissionsFor(everyoneRole)
-        ?.has(PermissionFlagsBits.ViewChannel);
-      const userHasAdmin = interaction.member.permissions.has(
-        PermissionFlagsBits.Administrator,
-      );
+        // SAFE CHECK: Check if @everyone can view the channel using the standard permissions cache
+        const everyoneRole = interaction.guild.roles.everyone;
+        const channelPermissions =
+          interaction.channel.permissionsFor(everyoneRole);
 
-      // Rule: If it's not the designated arena channel AND it's not a private admin/staff room, block it.
-      if (!isCurrentChannelLinked && !(isPrivateChannel && userHasAdmin)) {
-        return interaction.editReply({
-          content: `❌ This command can only be run in the designated trivia channel (<#${config.triviaChannelId}>) or private administrator channels.`,
+        // If the bot can't read permissions, default safely to public behavior
+        const isPrivateChannel = channelPermissions
+          ? !channelPermissions.has(PermissionFlagsBits.ViewChannel)
+          : false;
+
+        const userHasAdmin = interaction.member.permissions.has(
+          PermissionFlagsBits.Administrator,
+        );
+
+        // Gatekeeper logic check
+        if (!isCurrentChannelLinked && !(isPrivateChannel && userHasAdmin)) {
+          return await interaction.editReply({
+            content: `❌ This command can only be run in the designated trivia channel (<#${config.triviaChannelId}>) or private administrator rooms.`,
+          });
+        }
+      }
+
+      const allowed = await isAuthorized(interaction);
+      if (!allowed) {
+        return await interaction.editReply({
+          content: "❌ You are not authorized to create trivia games.",
         });
       }
-    }
 
-    const allowed = await isAuthorized(interaction);
-    if (!allowed) {
-      return interaction.editReply({
-        content: "❌ You are not authorized to create trivia games.",
+      const duration = interaction.options.getString("duration");
+      const img1 = interaction.options.getAttachment("img1");
+      const img2 = interaction.options.getAttachment("img2");
+
+      // Atomic write configuration operation
+      await TriviaSetup.findOneAndUpdate(
+        { creatorId: interaction.user.id },
+        {
+          creatorId: interaction.user.id,
+          channelId: interaction.channel.id,
+          question: "",
+          duration,
+          img1: img1.url,
+          img2: img2?.url || null,
+          options: [],
+        },
+        { upsert: true, new: true, overwrite: true },
+      );
+
+      // Render out dashboard immediately
+      return await this.renderSetupPanel(interaction, interaction.user.id);
+    } catch (error) {
+      console.error("❌ CRITICAL ERROR INSIDE EXECUTE GATEKEEPER:", error);
+      return await interaction.editReply({
+        content:
+          "❌ An internal gatekeeper error occurred while establishing this session setup stream.",
       });
     }
-
-    const duration = interaction.options.getString("duration");
-    const img1 = interaction.options.getAttachment("img1");
-    const img2 = interaction.options.getAttachment("img2");
-
-    // Clean atomic upsert
-    await TriviaSetup.findOneAndUpdate(
-      { creatorId: interaction.user.id },
-      {
-        creatorId: interaction.user.id,
-        channelId: interaction.channel.id,
-        question: "",
-        duration,
-        img1: img1.url,
-        img2: img2?.url || null,
-        options: [],
-      },
-      { upsert: true, new: true, overwrite: true },
-    );
-
-    // FIXED: Added await here so the interaction lifecycle updates properly before exiting the thread execution loop
-    await this.renderSetupPanel(interaction, interaction.user.id);
   },
 
   async renderSetupPanel(interaction, creatorId) {
