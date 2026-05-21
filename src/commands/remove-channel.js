@@ -14,7 +14,7 @@ module.exports = {
 
     if (!config || !config.triviaChannelId) {
       return interaction.reply({
-        content: "❌ There is no channel currently linked.",
+        content: "There is no channel currently linked.",
         ephemeral: true,
       });
     }
@@ -24,7 +24,7 @@ module.exports = {
 
     return interaction.reply({
       content:
-        "🗑️ Successfully unlinked the trivia channel. Trivia can now be created in any channel.",
+        "Successfully unlinked the trivia channel. Trivia can now be created in any channel.",
       ephemeral: true,
     });
   },

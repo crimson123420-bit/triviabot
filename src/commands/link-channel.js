@@ -14,7 +14,7 @@ module.exports = {
     .addChannelOption((option) =>
       option
         .setName("channel")
-        .setDescription("The channel where trivia games must be created")
+        .setDescription("The channel where trivia must be created")
         .addChannelTypes(ChannelType.GuildText)
         .setRequired(true),
     )
@@ -31,7 +31,7 @@ module.exports = {
     );
 
     return interaction.reply({
-      content: `✅ Successfully linked trivia creation to ${targetChannel}. Running \`/create-trivia\` is now restricted to this channel.`,
+      content: `Successfully linked trivia creation to ${targetChannel}. Running \`/create-trivia\` is now restricted to this channel.`,
       ephemeral: true,
     });
   },

@@ -4,18 +4,17 @@ const {
   PermissionFlagsBits,
 } = require("discord.js");
 const Permission = require("../models/Permission");
+const TriviaSetup = require("../models/TriviaSetup"); // 1. IMPORT YOUR TRIVIA SETUP MODEL
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("access-list")
     .setDescription(
-      "Show all roles and individuals authorized to create trivia",
+      "Show all roles, individuals, and channels configured for the trivia engine",
     )
-    // Natively locks UI visibility and execution strictly to Server Administrators
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator),
 
   async execute(interaction) {
-    // Hard check: Fail-safe runtime verification if Discord UI cache misbehaves
     if (
       !interaction.member.permissions.has(PermissionFlagsBits.Administrator)
     ) {
@@ -26,35 +25,53 @@ module.exports = {
     }
 
     const guildId = interaction.guild.id;
+
+    // 2. FETCH BOTH THE PERMISSIONS AND THE CHANNEL CONFIG PARALLEL
     const config = await Permission.findOne({ guildId });
+    const channelConfig = await TriviaSetup.findOne({
+      configId: "SINGLE_SERVER_CONFIG",
+    });
 
     if (
-      !config ||
-      (config.authorizedRoles.length === 0 &&
-        config.authorizedUsers.length === 0)
+      (!config ||
+        (config.authorizedRoles.length === 0 &&
+          config.authorizedUsers.length === 0)) &&
+      (!channelConfig || !channelConfig.triviaChannelId)
     ) {
       return interaction.editReply({
         content:
-          "⚠️ No authorized trainers found. Use `/manage-access` to get started!",
+          "⚠️ No trivia configurations found. Use `/manage-access` or `/link-channel` to get started!",
       });
     }
 
     const rolesList =
-      config.authorizedRoles.length > 0
+      config && config.authorizedRoles.length > 0
         ? config.authorizedRoles.map((id) => `<@&${id}>`).join("\n")
         : "*None*";
 
     const usersList =
-      config.authorizedUsers.length > 0
+      config && config.authorizedUsers.length > 0
         ? config.authorizedUsers.map((id) => `<@${id}>`).join("\n")
         : "*None*";
 
+    // 3. FORMAT THE DISCORD CHANNEL PING DYNAMICALLY
+    const channelDisplay =
+      channelConfig && channelConfig.triviaChannelId
+        ? `<#${channelConfig.triviaChannelId}>`
+        : "*No channel linked (Can be used anywhere)*";
+
     const listEmbed = new EmbedBuilder()
-      .setTitle("Trivia Access List")
+      .setTitle("Trivia System Dashboard")
       .setColor(0x5865f2)
       .addFields(
         { name: "👥 Authorized Roles", value: rolesList, inline: true },
         { name: "👤 Authorized Individuals", value: usersList, inline: true },
+        // 4. ADD THE CHANNEL FIELD SPANNING THE FULL WIDTH BELOW THE ROLES/USERS
+        {
+          name: "📍 Designated Trivia Creation Channel",
+          value: channelDisplay,
+          inline: false,
+        },
       )
       .setFooter({ text: `Requested by ${interaction.user.username}` })
       .setTimestamp();
