@@ -3,7 +3,7 @@ const {
   PermissionFlagsBits,
   ChannelType,
 } = require("discord.js");
-const TriviaSetup = require("../models/TriviaSetup");
+const GuildConfig = require("../models/GuildConfig"); // Import the new schema
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -21,14 +21,12 @@ module.exports = {
   async execute(interaction) {
     const targetChannel = interaction.options.getChannel("channel");
 
-    // Permanently save to MongoDB
-    await TriviaSetup.findOneAndUpdate(
-      { configId: "SINGLE_SERVER_CONFIG" },
+    await GuildConfig.findOneAndUpdate(
+      { guildId: interaction.guild.id },
       { triviaChannelId: targetChannel.id },
       { upsert: true, new: true },
     );
 
-    // FIX: Changed from interaction.reply to interaction.editReply
     return interaction.editReply({
       content: `Successfully linked trivia creation to ${targetChannel}. Running \`/create-trivia\` is now restricted to this channel.`,
     });

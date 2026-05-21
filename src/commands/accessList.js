@@ -5,6 +5,7 @@ const {
 } = require("discord.js");
 const Permission = require("../models/Permission");
 const TriviaSetup = require("../models/TriviaSetup"); // 1. IMPORT YOUR TRIVIA SETUP MODEL
+const GuildConfig = require("../models/GuildConfig");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -28,9 +29,7 @@ module.exports = {
 
     // 2. FETCH BOTH THE PERMISSIONS AND THE CHANNEL CONFIG PARALLEL
     const config = await Permission.findOne({ guildId });
-    const channelConfig = await TriviaSetup.findOne({
-      configId: "SINGLE_SERVER_CONFIG",
-    });
+    const channelConfig = await GuildConfig.findOne({ guildId });
 
     if (
       (!config ||
@@ -40,7 +39,7 @@ module.exports = {
     ) {
       return interaction.editReply({
         content:
-          "⚠️ No trivia configurations found. Use `/manage-access` or `/link-channel` to get started!",
+          "No trivia configurations found. Use `/manage-access` or `/link-channel` to get started!",
       });
     }
 
@@ -68,7 +67,7 @@ module.exports = {
         { name: "👤 Authorized Individuals", value: usersList, inline: true },
         // 4. ADD THE CHANNEL FIELD SPANNING THE FULL WIDTH BELOW THE ROLES/USERS
         {
-          name: "📍 Designated Trivia Creation Channel",
+          name: "Designated Trivia Creation Channel",
           value: channelDisplay,
           inline: false,
         },

@@ -8,13 +8,14 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  MessageFlags,
+  PermissionFlagsBits,
 } = require("discord.js");
 
 const UserStats = require("../models/UserStats");
 const TriviaSetup = require("../models/TriviaSetup");
+const GuildConfig = require("../models/GuildConfig");
 const ActiveTrivia = require("../models/ActiveTrivia");
-const TriviaPing = require("../models/TriviaPing"); // Added TriviaPing model import
+const TriviaPing = require("../models/TriviaPing");
 const { isAuthorized } = require("../utils/checkPermission");
 
 const DURATIONS = {
@@ -38,7 +39,7 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName("create-trivia")
     .setDescription("Launch an interactive trivia setup control panel")
-    .setDefaultMemberPermissions(0) // Hides it from regular members natively in UI
+    .setDefaultMemberPermissions(0)
     .addStringOption((opt) =>
       opt
         .setName("duration")
@@ -64,16 +65,32 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    const config = await TriviaSetup.findOne({
-      configId: "SINGLE_SERVER_CONFIG",
-    });
+    const config = await GuildConfig.findOne({ guildId: interaction.guild.id });
+
+    // 1. UPDATED GATEKEEPER LOOPS
+    // Check if a linked public channel exists
     if (config && config.triviaChannelId) {
-      if (interaction.channel.id !== config.triviaChannelId) {
+      const isCurrentChannelLinked =
+        interaction.channel.id === config.triviaChannelId;
+      const isCurrentChannelAdminOnly =
+        interaction.channel
+          .permissionsFor(interaction.guild.roles.everyone)
+          .has(PermissionFlagsBits.ViewChannel) === false;
+      const userHasAdminPerms = interaction.member.permissions.has(
+        PermissionFlagsBits.Administrator,
+      );
+
+      // Deny access if it's not the linked channel AND it's not a hidden staff/admin room
+      if (
+        !isCurrentChannelLinked &&
+        !(isCurrentChannelAdminOnly && userHasAdminPerms)
+      ) {
         return interaction.editReply({
-          content: `❌ This command can only be used in the designated trivia channel: <#${config.triviaChannelId}>.`,
+          content: `❌ This command can only be run in the designated trivia channel (<#${config.triviaChannelId}>) or private administrator rooms.`,
         });
       }
     }
+
     const allowed = await isAuthorized(interaction);
     if (!allowed) {
       return interaction.editReply({
@@ -88,7 +105,7 @@ module.exports = {
     await TriviaSetup.findOneAndUpdate(
       { creatorId: interaction.user.id },
       {
-        channelId: interaction.channel.id,
+        channelId: interaction.channel.id, // Keeps track of where the setup panel dialogue is running
         question: "",
         duration,
         img1: img1.url,
@@ -105,7 +122,6 @@ module.exports = {
     const session = await TriviaSetup.findOne({ creatorId });
     if (!session) return;
 
-    // Count individual option tiers dynamically
     const countTier = (t) => session.options.filter((o) => o.tier === t).length;
     const optimalCount = countTier("optimal");
     const suboptimalCount = countTier("suboptimal");
@@ -148,7 +164,6 @@ module.exports = {
         .setStyle(ButtonStyle.Danger),
     );
 
-    // --- ENFORCED COMPULSORY TIER CHECKS ---
     const canPublish =
       session.question &&
       optimalCount >= 1 &&
@@ -216,7 +231,7 @@ module.exports = {
       return this.renderSetupPanel(interaction, creatorId);
     }
 
-    // 2. OPTION POPUP MODAL (WITH MAX BOUND VALIDATION)
+    // 2. OPTION POPUP MODAL
     if (interaction.isButton() && customId.startsWith("trivia_setup_add_")) {
       const creatorId = customId.replace("trivia_setup_add_", "");
       if (interaction.user.id !== creatorId)
@@ -295,7 +310,7 @@ module.exports = {
       return this.renderSetupPanel(interaction, creatorId);
     }
 
-    // 3. PUBLISHING LOGIC
+    // 3. PUBLISHING LOGIC (ROUTED TO THE LINKED PUBLIC CHANNEL)
     if (
       interaction.isButton() &&
       customId.startsWith("trivia_setup_publish_")
@@ -305,12 +320,19 @@ module.exports = {
       const session = await TriviaSetup.findOne({ creatorId });
       if (!session) return;
 
-      const targetChannel = interaction.guild.channels.cache.get(
-        session.channelId,
-      );
+      // Fetch the target public channel configuration from GuildConfig
+      const config = await GuildConfig.findOne({
+        guildId: interaction.guild.id,
+      });
+
+      // Fallback: If no channel is linked via /link-channel, use the channel where it was setup
+      const targetChannelId = config?.triviaChannelId || session.channelId;
+      const targetChannel =
+        interaction.guild.channels.cache.get(targetChannelId);
+
       if (!targetChannel)
         return interaction.followUp({
-          content: "❌ Pipeline failure.",
+          content: "❌ Pipeline failure: Could not find destination channel.",
           ephemeral: true,
         });
 
@@ -353,14 +375,13 @@ module.exports = {
         .setLabel("View Participants")
         .setStyle(ButtonStyle.Secondary);
 
-      // Fetch linked ping configuration for this guild
       const pingConfig = await TriviaPing.findOne({
         guildId: interaction.guild.id,
       });
       const pingContent = pingConfig ? `<@&${pingConfig.roleId}>` : "";
 
       const message = await targetChannel.send({
-        content: pingContent, // Placed cleanly at the top of the message context
+        content: pingContent,
         embeds,
         components: [
           new ActionRowBuilder().addComponents(select),
@@ -368,10 +389,10 @@ module.exports = {
         ],
       });
 
-      // Save game profile to the active tracker collection
+      // Save game profile using targetChannelId so resolvers can track it correctly
       await ActiveTrivia.create({
         triviaId,
-        channelId: session.channelId,
+        channelId: targetChannelId,
         messageId: message.id,
         question: session.question || "Trivia",
         endTime,
@@ -382,8 +403,10 @@ module.exports = {
       });
 
       await TriviaSetup.deleteOne({ creatorId });
+
+      // Update the admin panel to confirm execution across the channel bridge
       await interaction.editReply({
-        content: "🚀 **Trivia Published successfully!**",
+        content: `🚀 **Trivia published successfully over to** ${targetChannel}!`,
         embeds: [],
         components: [],
       });
@@ -397,7 +420,6 @@ module.exports = {
         console.error("Thread creation error bypassed safely:", e);
       }
 
-      // Fire off automated execution countdown safety engine
       setTimeout(
         () => module.exports.resolveTriviaGame(interaction.client, triviaId),
         durationMs,
@@ -421,7 +443,6 @@ module.exports = {
           ephemeral: true,
         });
 
-      // Check if user already has an active vote registered
       const alreadyVoted = game.votes.some(
         (v) => v.userId === interaction.user.id,
       );
@@ -432,7 +453,6 @@ module.exports = {
         });
       }
 
-      // Store selection in background cache inside ActiveTrivia collection
       await ActiveTrivia.findOneAndUpdate(
         { triviaId },
         {
@@ -480,7 +500,7 @@ module.exports = {
       const game = await ActiveTrivia.findOne({ triviaId });
       if (!game) return;
 
-      const guild = client.guilds.cache.first(); // Find current context bounds
+      const guild = client.guilds.cache.first();
       const channel = guild?.channels.cache.get(game.channelId);
       if (!channel) return;
 
@@ -488,7 +508,6 @@ module.exports = {
       try {
         message = await channel.messages.fetch(game.messageId);
       } catch {
-        // Safe exit if the message was deleted manually by admins
         await ActiveTrivia.deleteOne({ triviaId });
         return;
       }
@@ -499,7 +518,6 @@ module.exports = {
         grouped[v.optionIndex].push(v.userId);
       });
 
-      // PUSH STATS TO PERMANENT PROFILES TRIVIA HISTORY RECORD ONLY AT RESOLUTION
       for (const vote of game.votes) {
         await UserStats.findOneAndUpdate(
           { userId: vote.userId },

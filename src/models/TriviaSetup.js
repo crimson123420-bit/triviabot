@@ -17,8 +17,6 @@ const TriviaSetupSchema = new mongoose.Schema({
   img1: { type: String, required: true },
   img2: { type: String, default: null },
   options: { type: [OptionConfigSchema], default: [] },
-  configId: { type: String, default: "SINGLE_SERVER_CONFIG", unique: true },
-  triviaChannelId: { type: String, default: null },
 });
 
 module.exports = mongoose.model("TriviaSetup", TriviaSetupSchema);
