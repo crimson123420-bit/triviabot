@@ -71,8 +71,9 @@ module.exports = {
     if (config && config.triviaChannelId) {
       const isCurrentChannelLinked =
         interaction.channel.id === config.triviaChannelId;
-
       const everyoneRole = interaction.guild.roles.everyone;
+
+      // Checking permissions carefully with optional chaining
       const isPrivateChannel = !interaction.channel
         .permissionsFor(everyoneRole)
         ?.has(PermissionFlagsBits.ViewChannel);
@@ -80,9 +81,10 @@ module.exports = {
         PermissionFlagsBits.Administrator,
       );
 
+      // Rule: If it's not the designated arena channel AND it's not a private admin/staff room, block it.
       if (!isCurrentChannelLinked && !(isPrivateChannel && userHasAdmin)) {
         return interaction.editReply({
-          content: `❌ This command can only be run in the designated trivia channel (<#${config.triviaChannelId}>) or private administrator rooms.`,
+          content: `❌ This command can only be run in the designated trivia channel (<#${config.triviaChannelId}>) or private administrator channels.`,
         });
       }
     }
@@ -98,8 +100,7 @@ module.exports = {
     const img1 = interaction.options.getAttachment("img1");
     const img2 = interaction.options.getAttachment("img2");
 
-    // FIX: Combined findOneAndDelete + create into ONE atomic operation
-    // This removes the database lag that freezes the "thinking" status!
+    // Clean atomic upsert
     await TriviaSetup.findOneAndUpdate(
       { creatorId: interaction.user.id },
       {
@@ -114,7 +115,8 @@ module.exports = {
       { upsert: true, new: true, overwrite: true },
     );
 
-    return this.renderSetupPanel(interaction, interaction.user.id);
+    // FIXED: Added await here so the interaction lifecycle updates properly before exiting the thread execution loop
+    await this.renderSetupPanel(interaction, interaction.user.id);
   },
 
   async renderSetupPanel(interaction, creatorId) {
@@ -178,7 +180,8 @@ module.exports = {
         .setDisabled(!canPublish),
     );
 
-    return interaction.editReply({
+    // FIXED: Ensured this cleanly resolves editReply execution
+    return await interaction.editReply({
       embeds: [embed],
       components: [row1, row2],
     });
@@ -309,7 +312,7 @@ module.exports = {
       return this.renderSetupPanel(interaction, creatorId);
     }
 
-    // 3. PUBLISHING LOGIC (ROUTED TO THE LINKED PUBLIC CHANNEL)
+    // 3. PUBLISHING LOGIC
     if (
       interaction.isButton() &&
       customId.startsWith("trivia_setup_publish_")
@@ -319,12 +322,10 @@ module.exports = {
       const session = await TriviaSetup.findOne({ creatorId });
       if (!session) return;
 
-      // Fetch the target public channel configuration from GuildConfig
       const config = await GuildConfig.findOne({
         guildId: interaction.guild.id,
       });
 
-      // Fallback: If no channel is linked via /link-channel, use the channel where it was setup
       const targetChannelId = config?.triviaChannelId || session.channelId;
       const targetChannel =
         interaction.guild.channels.cache.get(targetChannelId);
@@ -388,7 +389,6 @@ module.exports = {
         ],
       });
 
-      // Save game profile using targetChannelId so resolvers can track it correctly
       await ActiveTrivia.create({
         triviaId,
         channelId: targetChannelId,
@@ -403,7 +403,6 @@ module.exports = {
 
       await TriviaSetup.deleteOne({ creatorId });
 
-      // Update the admin panel to confirm execution across the channel bridge
       await interaction.editReply({
         content: `🚀 **Trivia published successfully over to** ${targetChannel}!`,
         embeds: [],
