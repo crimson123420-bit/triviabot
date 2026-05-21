@@ -40,7 +40,6 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName("create-trivia")
     .setDescription("Launch an interactive trivia setup control panel")
-    .setDefaultMemberPermissions(0)
     .addStringOption((opt) =>
       opt
         .setName("duration")

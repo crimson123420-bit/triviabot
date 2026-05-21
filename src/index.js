@@ -25,7 +25,10 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(async () => {
     console.log("✅ MongoDB Connected");
-
+    await mongoose.connection.db
+      .collection("triviasetups")
+      .dropIndex("configId_1")
+      .catch(() => null);
     // REBOOT RESOLUTION RESUMPTION CHECK ENGINE
     client.once("ready", async () => {
       console.log(`🤖 Logged into system client pipeline: ${client.user.tag}`);
