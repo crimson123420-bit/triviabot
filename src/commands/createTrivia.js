@@ -184,6 +184,7 @@ module.exports = {
     return await interaction.editReply({
       embeds: [embed],
       components: [row1, row2],
+      flags: [MessageFlags.Ephemeral], // 💡 Match the main engine's defer style
     });
   },
 
