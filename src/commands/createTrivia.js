@@ -175,9 +175,9 @@ module.exports = {
       .setDescription(
         `**Question:** ${session.question ? `\`${session.question}\`` : "*Not added yet (Compulsory)*"}\n\n` +
           `**Option Tier Allocations (Max 3 each):**\n` +
-          `🟢 Optimal (4 pts): \`[ ${optimalCount} / 3 ]\` ${optimalCount === 0 ? "❌ *Requires at least 1*" : "✅"}\n` +
-          `🟡 Suboptimal (2 pts): \`[ ${suboptimalCount} / 3 ]\` ${suboptimalCount === 0 ? "❌ *Requires at least 1*" : "✅"}\n` +
-          `🔵 Decent (1 pt): \`[ ${decentCount} / 3 ]\` ${decentCount === 0 ? "❌ *Requires at least 1*" : "✅"}\n` +
+          `🟢 Optimal (4k pts): \`[ ${optimalCount} / 3 ]\` ${optimalCount === 0 ? "❌ *Requires at least 1*" : "✅"}\n` +
+          `🟡 Suboptimal (2k pts): \`[ ${suboptimalCount} / 3 ]\` ${suboptimalCount === 0 ? "❌ *Requires at least 1*" : "✅"}\n` +
+          `🔵 Decent (1k pts): \`[ ${decentCount} / 3 ]\` ${decentCount === 0 ? "❌ *Requires at least 1*" : "✅"}\n` +
           `🔴 Bad (0 pts): \`[ ${badCount} / 3 ]\` ${badCount === 0 ? "❌ *Requires at least 1*" : "✅"}\n\n` +
           `**Configured Question List (${totalOptions} total options added):**\n` +
           (session.options
@@ -312,7 +312,12 @@ module.exports = {
         .toLowerCase()
         .trim();
 
-      const validTiers = { optimal: 4, suboptimal: 2, decent: 1, bad: 0 };
+      const validTiers = {
+        optimal: 4000,
+        suboptimal: 2000,
+        decent: 1000,
+        bad: 0,
+      };
       if (!validTiers.hasOwnProperty(tier)) {
         return interaction.reply({
           content:
