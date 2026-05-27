@@ -43,7 +43,7 @@ function parseHistoryData(triviaHistory) {
 // Helper to safely format accuracy values without breaking on zero divisions
 function calculateAccuracy(points, attempts) {
   if (!attempts || attempts === 0) return "0%";
-  const ratio = (points / (attempts * 4)) * 100;
+  const ratio = (points / (attempts * 4000)) * 100;
   // If it's an exact integer, don't show trailing decimals. Otherwise, round to 1 decimal place.
   return ratio % 1 === 0 ? `${ratio}%` : `${ratio.toFixed(1)}%`;
 }
