@@ -105,7 +105,6 @@ module.exports = {
           "❌ CRITICAL: isAuthorized function crashed during verification:",
           permError,
         );
-        // Fallback: If your permissions utility is broken, let's allow Admins to pass anyway
         allowed = interaction.member.permissions.has(
           PermissionFlagsBits.Administrator,
         );
@@ -148,7 +147,6 @@ module.exports = {
 
       return await this.renderSetupPanel(interaction, interaction.user.id);
     } catch (error) {
-      // 💡 THIS WILL PRINT THE EXACT LINE AND FILE COMPONENT CAUSING YOUR CRASH IN YOUR TERMINAL!
       console.error("🔴 DISCOVERED GATEKEEPER CRASH LOG BELOW:");
       console.error(error);
 
@@ -219,11 +217,10 @@ module.exports = {
         .setDisabled(!canPublish),
     );
 
-    // FIXED: Ensured this cleanly resolves editReply execution
     return await interaction.editReply({
       embeds: [embed],
       components: [row1, row2],
-      flags: [MessageFlags.Ephemeral], // 💡 Match the main engine's defer style
+      flags: [MessageFlags.Ephemeral],
     });
   },
 
@@ -307,10 +304,14 @@ module.exports = {
     ) {
       const creatorId = customId.replace("trivia_setup_optmodal_", "");
       const text = interaction.fields.getTextInputValue("opt_text");
-      const tier = interaction.fields
+      const rawTierInput = interaction.fields
         .getTextInputValue("opt_tier")
         .toLowerCase()
         .trim();
+
+      const tierTokens = rawTierInput.split(/\s+/);
+      const tier = tierTokens[0];
+      const targetIndex = tierTokens[1] ? parseInt(tierTokens[1], 10) : null;
 
       const validTiers = {
         optimal: 4000,
@@ -328,20 +329,47 @@ module.exports = {
 
       await interaction.deferUpdate();
       const session = await TriviaSetup.findOne({ creatorId });
-      const currentTierCount = session.options.filter(
-        (o) => o.tier === tier,
-      ).length;
+      let currentOptionsArray = [...session.options];
 
-      if (currentTierCount >= 3) {
-        return interaction.followUp({
-          content: `❌ Limit configuration broken. You can only append up to 3 options for the **${tier}** category.`,
-          ephemeral: true,
+      if (targetIndex !== null && !isNaN(targetIndex)) {
+        let matchCounter = 0;
+        let replacedFlag = false;
+
+        currentOptionsArray = currentOptionsArray.map((o) => {
+          if (o.tier === tier) {
+            matchCounter++;
+            if (matchCounter === targetIndex) {
+              replacedFlag = true;
+              return { text, pts: validTiers[tier], tier };
+            }
+          }
+          return o;
         });
+
+        if (!replacedFlag) {
+          return interaction.followUp({
+            content: `❌ Could not find an existing slot matching **[${tier.toUpperCase()} ${targetIndex}]** to update.`,
+            ephemeral: true,
+          });
+        }
+      } else {
+        const currentTierCount = currentOptionsArray.filter(
+          (o) => o.tier === tier,
+        ).length;
+
+        if (currentTierCount >= 3) {
+          return interaction.followUp({
+            content: `❌ Limit configuration broken. You can only append up to 3 options for the **${tier}** category.`,
+            ephemeral: true,
+          });
+        }
+
+        currentOptionsArray.push({ text, pts: validTiers[tier], tier });
       }
 
       await TriviaSetup.findOneAndUpdate(
         { creatorId },
-        { $push: { options: { text, pts: validTiers[tier], tier } } },
+        { options: currentOptionsArray },
       );
 
       return this.renderSetupPanel(interaction, creatorId);
@@ -521,15 +549,18 @@ module.exports = {
       const triviaId = customId.replace("trivia_participants_", "");
 
       const game = await ActiveTrivia.findOne({ triviaId });
+      const votesArray = game?.votes || [];
+      const totalVoters = votesArray.length;
+
       const voterList =
-        game?.votes?.map((v) => `<@${v.userId}>`).join(", ") ||
+        votesArray.map((v) => `<@${v.userId}>`).join(", ") ||
         "No participants yet.";
 
       return interaction.followUp({
         embeds: [
           new EmbedBuilder()
             .setColor(0x2b2d31)
-            .setTitle("Trivia Participants")
+            .setTitle(`Trivia Participants (Total: ${totalVoters})`)
             .setDescription(voterList),
         ],
         ephemeral: true,

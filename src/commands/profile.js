@@ -4,11 +4,9 @@ const {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  AttachmentBuilder,
 } = require("discord.js");
 
 const UserStats = require("../models/UserStats");
-const { ChartJSNodeCanvas } = require("chartjs-node-canvas");
 
 // Helper function to extract a YYYY-MM key from a trivia timestamp
 function getMonthKey(date) {
@@ -44,7 +42,6 @@ function parseHistoryData(triviaHistory) {
 function calculateAccuracy(points, attempts) {
   if (!attempts || attempts === 0) return "0%";
   const ratio = (points / (attempts * 4000)) * 100;
-  // If it's an exact integer, don't show trailing decimals. Otherwise, round to 1 decimal place.
   return ratio % 1 === 0 ? `${ratio}%` : `${ratio.toFixed(1)}%`;
 }
 
@@ -109,7 +106,7 @@ module.exports = {
         monthlyHigher++;
     });
 
-    // Format current local month display name (e.g., "May 2026")
+    // Format current local month display name
     const monthName = now.toLocaleString("default", {
       month: "long",
       year: "numeric",
@@ -140,7 +137,7 @@ module.exports = {
           inline: true,
         },
       )
-      .setTimestamp(); // Restores the footer timestamp look ("Today at...")
+      .setTimestamp();
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -152,11 +149,6 @@ module.exports = {
       new ButtonBuilder()
         .setCustomId(`profile_monthly_${target.id}`)
         .setEmoji("📅")
-        .setStyle(ButtonStyle.Secondary),
-
-      new ButtonBuilder()
-        .setCustomId(`profile_graph_${target.id}`)
-        .setEmoji("📊")
         .setStyle(ButtonStyle.Secondary),
     );
 
@@ -238,103 +230,12 @@ module.exports = {
           .setEmoji("📅")
           .setStyle(ButtonStyle.Secondary)
           .setDisabled(true),
-        new ButtonBuilder()
-          .setCustomId(`profile_graph_${target.id}`)
-          .setEmoji("📊")
-          .setStyle(ButtonStyle.Secondary),
       );
 
       return interaction.editReply({
         embeds: [embed],
         components: [row],
         files: [],
-      });
-    }
-
-    if (action === "graph") {
-      const canvas = new ChartJSNodeCanvas({
-        width: 900,
-        height: 500,
-        backgroundColour: "#2b2d31",
-      });
-
-      const { dailyMap } = parseHistoryData(stats.triviaHistory);
-      const last30 = [];
-
-      for (let i = 29; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const key = d.toISOString().split("T")[0];
-
-        last30.push({
-          label: `${d.getDate()}/${d.getMonth() + 1}`,
-          value: dailyMap[key] || 0,
-        });
-      }
-
-      const buffer = await canvas.renderToBuffer({
-        type: "line",
-        data: {
-          labels: last30.map((d) => d.label),
-          datasets: [
-            {
-              label: "Daily Points Earned",
-              data: last30.map((d) => d.value),
-              borderColor: "#5865F2",
-              borderWidth: 3,
-              tension: 0.35,
-              fill: false,
-            },
-          ],
-        },
-        options: {
-          plugins: {
-            legend: { labels: { color: "#ffffff" } },
-          },
-          scales: {
-            y: {
-              ticks: { color: "#ffffff" },
-              grid: { color: "rgba(255,255,255,0.1)" },
-            },
-            x: {
-              ticks: { color: "#ffffff" },
-              grid: { color: "rgba(255,255,255,0.1)" },
-            },
-          },
-        },
-      });
-
-      const attachment = new AttachmentBuilder(buffer, { name: "graph.png" });
-
-      const embed = new EmbedBuilder()
-        .setColor(0x2b2d31)
-        .setAuthor({
-          name: `${target.username} • Last 30 Days Progression`,
-          iconURL: target.displayAvatarURL({ dynamic: true }),
-        })
-        .setImage("attachment://graph.png")
-        .setTimestamp();
-
-      const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(`profile_home_${target.id}`)
-          .setEmoji("🏠")
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId(`profile_monthly_${target.id}`)
-          .setEmoji("📅")
-          .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-          .setCustomId(`profile_graph_${target.id}`)
-          .setEmoji("📊")
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(true),
-      );
-
-      return interaction.editReply({
-        embeds: [embed],
-        files: [attachment],
-        components: [row],
       });
     }
   },
