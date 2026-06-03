@@ -9,10 +9,17 @@ const {
 const OPENINGS_DATA = {
   GB_V1: {
     label: "GB V1",
-    description: "A beginner friendly opening.",
+    description: "A beginner friendly opening with 2244 land stats.",
     image:
       "https://cdn.discordapp.com/attachments/1511749592708808946/1511749654944026664/Screenshot_2026-02-04_135846.png?ex=6a219614&is=6a204494&hm=3f535d282cacd9e9138fca3c1a96cea7c8a889424cacbe41e46f2021e19c45fd&",
     youtube: "https://www.youtube.com/watch?v=sD06REakQpA",
+  },
+  Freddo_V1: {
+    label: "Freddo V1",
+    description: "A widely used opening with 3120 land stats.",
+    image:
+      "https://cdn.discordapp.com/attachments/1511749592708808946/1511772271897874442/image.png?ex=6a21ab24&is=6a2059a4&hm=a1fad0494ffd5a577ce6a8d1b195d202a1d48d1e702437eb00f4d74a1974cbd2&",
+    youtube: "https://www.youtube.com/watch?v=Ybu4wJdK7vQ",
   },
 };
 
