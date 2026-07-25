@@ -616,14 +616,20 @@ module.exports = {
         )
         .join("\n\n");
 
-      const embeds = [
-        new EmbedBuilder()
-          .setColor(0x2b2d31)
-          .setDescription(`## ${game.question}`)
-          .setImage(game.img1),
-      ];
-      if (game.img2)
+      const embeds = [];
+
+      if (game.img1) {
+        embeds.push(
+          new EmbedBuilder()
+            .setColor(0x2b2d31)
+            .setDescription(`## ${game.question}`)
+            .setImage(game.img1),
+        );
+      }
+
+      if (game.img2) {
         embeds.push(new EmbedBuilder().setColor(0x2b2d31).setImage(game.img2));
+      }
 
       embeds.push(
         new EmbedBuilder()
