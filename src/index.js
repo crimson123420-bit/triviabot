@@ -8,7 +8,7 @@ const {
 const mongoose = require("mongoose");
 const fs = require("node:fs");
 const path = require("node:path");
-
+const AutoEmoji = require("./models/AutoEmoji");
 const UserStats = require("./models/UserStats");
 const TriviaSetup = require("./models/TriviaSetup");
 const ActiveTrivia = require("./models/ActiveTrivia"); // Import new model cache line
@@ -123,5 +123,22 @@ client.on("interactionCreate", async (interaction) => {
     console.error("MASTER ENGINE ERROR PIPELINE INTERCEPT:", err);
   }
 });
+client.on("messageCreate", async (message) => {
+  if (message.author.bot || !message.guild) return;
 
+  const cleanContent = message.content.trim().toLowerCase();
+
+  try {
+    const match = await AutoEmoji.findOne({
+      guildId: message.guild.id,
+      keyword: cleanContent,
+    });
+
+    if (match) {
+      await message.react(match.emoji);
+    }
+  } catch (err) {
+    console.error("Failed to apply auto-emoji reaction:", err);
+  }
+});
 client.login(process.env.TOKEN);
