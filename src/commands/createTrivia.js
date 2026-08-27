@@ -616,19 +616,13 @@ module.exports = {
         )
         .join("\n\n");
 
-      const embeds = [];
+      const embeds = message.embeds.map((embed) => EmbedBuilder.from(embed));
 
-      if (game.img1) {
-        embeds.push(
-          new EmbedBuilder()
-            .setColor(0x2b2d31)
-            .setDescription(`## ${game.question}`)
-            .setImage(game.img1),
+      // Remove the old "Ends" timer while keeping the images
+      if (embeds[0]?.data.description) {
+        embeds[0].setDescription(
+          embeds[0].data.description.replace(/\n\n🚨 Ends:[\s\S]*$/, ""),
         );
-      }
-
-      if (game.img2) {
-        embeds.push(new EmbedBuilder().setColor(0x2b2d31).setImage(game.img2));
       }
 
       embeds.push(
@@ -637,7 +631,6 @@ module.exports = {
           .setTitle("Trivia Over — Final Results")
           .setDescription(resultDescription),
       );
-
       await message.edit({
         content: "🚨 **This trivia challenge has concluded!**",
         embeds,
